@@ -1,0 +1,18 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Build & Run robot_brain",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/cerebellum/build/robot_brain",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb",
+            "preLaunchTask": "CMake: Build robot_brain"
+        }
+    ]
+}

@@ -1,0 +1,22 @@
+# 密钥文件，绝对不上传
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# C++ 构建产物
+cerebellum/build/
+*.o
+*.a
+
+# 中转文件
+task_bridge.json
+
+# macOS
+.DS_Store
+
+# VS Code（可选保留，这里选择不上传本机特定配置）
+# .vscode/

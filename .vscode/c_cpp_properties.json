@@ -1,0 +1,21 @@
+{
+    "configurations": [
+        {
+            "name": "Mac",
+            "compileCommands": "${workspaceFolder}/cerebellum/build/compile_commands.json",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "/opt/homebrew/include",
+                "/opt/homebrew/include/**"
+            ],
+            "defines": [],
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "macFrameworkPath": [
+                "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/System/Library/Frameworks"
+            ],
+            "intelliSenseMode": "macos-clang-arm64"
+        }
+    ],
+    "version": 4
+}
