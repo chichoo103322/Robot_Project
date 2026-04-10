@@ -20,7 +20,7 @@ def nlp_processor(user_text):
     """
     将自然语言转化为 BehaviorTree.CPP 行为树 XML
     
-    LLM 将生成一个包含 Sequence（顺序执行）和 Fallback（容错）的行为树。
+    LLM 将生成结构化的行为树 XML。
     输出 JSON 格式：{"tree_xml": "<root>...</root>"}
     """
     prompt = f"""
@@ -28,29 +28,20 @@ def nlp_processor(user_text):
 
 【可用的控制节点】
 1. <Sequence>: 顺序执行所有子节点，若有一个失败则整体失败
-2. <Fallback>: 依次尝试子节点，直到某个成功则整体成功（容错逻辑）
+2. <Fallback>: 依次尝试子节点，直到某个成功则整体成功
 
 【可用的动作节点】
 1. <MoveTo target_place="地点"/>
-   - 参数 target_place: 机器人要去的地点（如"厨房", "客厅", "卧室", "阳台"）
+   - 参数 target_place: 机器人要去的地点
 
 2. <PickUp object_name="物体"/>
    - 参数 object_name: 要抓取的物体名称
-   - 特别注意：包含"水杯"的物体会抓取失败，应该在 Fallback 中处理
 
 3. <VoiceAlert message="播报内容"/>
    - 参数 message: 要播报的文本内容
-   - 用途：播报抓取失败等错误信息
 
 【设计规则】
-1. 必须使用 <Sequence> 完成主要任务流程
-2. 对于容易失败的操作（如抓取易碎品），使用 <Fallback> 提供备选方案
-3. 当 PickUp 可能失败时，在 Fallback 中加入 VoiceAlert 来播报失败原因
-
-【容错示例】
-对于用户指令 "去客厅拿水杯"：
-- 直接用 Sequence 会失败（因为水杯无法抓取）
-- 应该用 Fallback: 先尝试 Sequence(MoveTo + PickUp)，失败后触发 VoiceAlert 播报提示
+根据用户的自然语言指令生成相应的行为树，合理运用 Sequence 和 Fallback。
 
 【输出格式（必须是严格的 JSON）】
 {{
@@ -65,7 +56,7 @@ def nlp_processor(user_text):
 
 用户指令："{user_text}"
 
-现在生成对应的行为树 XML。如果用户指令涉及到"水杯"等易失败物体，请在 Fallback 中设计容错方案。
+现在生成对应的行为树 XML。
     """
 
     try:

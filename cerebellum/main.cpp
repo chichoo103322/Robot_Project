@@ -28,8 +28,7 @@ public:
     }
 };
 
-// PickUp: 抓取物体（带容错逻辑）
-// 如果物体名称包含"水杯"，则返回失败；否则成功
+// PickUp: 抓取物体
 class PickUp : public SyncActionNode {
 public:
     PickUp(const std::string& name, const NodeConfig& config) : SyncActionNode(name, config) {}
@@ -40,15 +39,7 @@ public:
     
     NodeStatus tick() override {
         auto msg = getInput<std::string>("object_name");
-        std::string obj = msg.value();
-        
-        // 模拟容错：水杯无法抓取
-        if (obj.find("水杯") != std::string::npos) {
-            std::cout << "[动作] 🦾 尝试抓取: " << obj << " [失败] ❌" << std::endl;
-            return NodeStatus::FAILURE;
-        }
-        
-        std::cout << "[动作] 🦾 正在抓取: " << obj << " [成功] ✓" << std::endl;
+        std::cout << "[动作] 🦾 正在抓取: " << msg.value() << std::endl;
         return NodeStatus::SUCCESS;
     }
 };
