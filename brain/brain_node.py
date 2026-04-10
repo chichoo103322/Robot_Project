@@ -1,10 +1,12 @@
 import os
 import json
 from openai import OpenAI
+from dotenv import load_dotenv
 
 # 1. 配置你的大模型 API
-# 请在项目根目录创建 .env 文件，写入：DASHSCOPE_API_KEY=你的密钥
-# 或在终端执行：export DASHSCOPE_API_KEY=你的密钥
+# 加载 .env 文件中的环境变量
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env'))
+
 api_key = os.environ.get("DASHSCOPE_API_KEY")
 if not api_key:
     raise EnvironmentError("请先设置环境变量 DASHSCOPE_API_KEY，参考 .env.example 文件")

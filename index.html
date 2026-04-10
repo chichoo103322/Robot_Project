@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>机器人控制中心</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.95;
+        }
+
+        .content {
+            padding: 40px 30px;
+            background: #f8f9fa;
+        }
+
+        .control-section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .control-section h2 {
+            font-size: 1.3em;
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+
+        .input-group input {
+            flex: 1;
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: all 0.3s ease;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .input-group button {
+            padding: 14px 32px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 120px;
+        }
+
+        .input-group button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4);
+        }
+
+        .input-group button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .input-group button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .status-message {
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: none;
+            font-size: 0.95em;
+        }
+
+        .status-message.loading {
+            background: #e3f2fd;
+            color: #1565c0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .status-message.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            display: block;
+        }
+
+        .status-message.error {
+            background: #ffebee;
+            color: #c62828;
+            display: block;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid currentColor;
+            border-right-color: transparent;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .output-section {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        .output-section h2 {
+            font-size: 1.3em;
+            color: #333;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .output-box {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 20px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            line-height: 1.6;
+            overflow-x: auto;
+            min-height: 150px;
+            max-height: 400px;
+            border: 1px solid #333;
+        }
+
+        .output-box code {
+            color: #00ff00;
+        }
+
+        .output-placeholder {
+            color: #666;
+            pointer-events: none;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+            font-size: 0.9em;
+            background: white;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        @media (max-width: 600px) {
+            .header h1 {
+                font-size: 1.8em;
+            }
+
+            .input-group {
+                flex-direction: column;
+            }
+
+            .input-group button {
+                width: 100%;
+            }
+
+            .content {
+                padding: 20px 15px;
+            }
+
+            .control-section,
+            .output-section {
+                padding: 20px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🤖 机器人控制中心</h1>
+            <p>基于大模型和行为树的智能机器人控制系统</p>
+        </div>
+
+        <div class="content">
+            <!-- 控制区 -->
+            <div class="control-section">
+                <h2>📝 下达指令</h2>
+                <div class="status-message" id="statusMessage"></div>
+                <div class="input-group">
+                    <input 
+                        type="text" 
+                        id="commandInput" 
+                        placeholder="去客厅拿本书"
+                        value="去客厅拿本书"
+                    >
+                    <button id="executeBtn" onclick="executeCommand()">下达指令</button>
+                </div>
+            </div>
+
+            <!-- 展示区 -->
+            <div class="output-section">
+                <h2>📊 解析结果</h2>
+                <div class="output-box" id="outputBox">
+                    <code class="output-placeholder">等待指令...</code>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>✨ 机器人解析结果会实时显示在此。为未来的行为树可视化预留</p>
+        </div>
+    </div>
+
+    <script>
+        // 向服务器发送命令
+        async function executeCommand() {
+            const input = document.getElementById('commandInput').value.trim();
+            const statusMsg = document.getElementById('statusMessage');
+            const outputBox = document.getElementById('outputBox');
+            const executeBtn = document.getElementById('executeBtn');
+
+            // 输入验证
+            if (!input) {
+                statusMsg.textContent = '请输入有效的指令';
+                statusMsg.className = 'status-message error';
+                return;
+            }
+
+            // 进入加载状态
+            statusMsg.innerHTML = '<span class="spinner"></span> 大脑解析中...';
+            statusMsg.className = 'status-message loading';
+            executeBtn.disabled = true;
+            outputBox.innerHTML = '<code class="output-placeholder">解析处理中...</code>';
+
+            try {
+                // 发送 POST 请求到后端
+                const response = await fetch('/api/execute', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ text: input })
+                });
+
+                const result = await response.json();
+
+                // 处理响应
+                if (result.success) {
+                    statusMsg.textContent = '✅ ' + result.message;
+                    statusMsg.className = 'status-message success';
+                    
+                    // 格式化并显示 JSON 结果
+                    const jsonStr = JSON.stringify(result.data, null, 2);
+                    outputBox.innerHTML = `<code>${escapeHtml(jsonStr)}</code>`;
+                } else {
+                    statusMsg.textContent = '❌ ' + result.message;
+                    statusMsg.className = 'status-message error';
+                    outputBox.innerHTML = `<code class="output-placeholder">处理失败</code>`;
+                }
+            } catch (error) {
+                statusMsg.textContent = '❌ 网络请求失败：' + error.message;
+                statusMsg.className = 'status-message error';
+                outputBox.innerHTML = `<code class="output-placeholder">错误</code>`;
+            } finally {
+                executeBtn.disabled = false;
+            }
+        }
+
+        // HTML 转义函数
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // 回车键快捷执行
+        document.getElementById('commandInput').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                executeCommand();
+            }
+        });
+    </script>
+</body>
+</html>
