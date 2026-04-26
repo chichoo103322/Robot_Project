@@ -18,52 +18,95 @@ client = OpenAI(
 
 def nlp_processor(user_text):
     """
-    将自然语言转化为 BehaviorTree.CPP 行为树 XML
-    
-    LLM 将生成结构化的行为树 XML。
-    输出 JSON 格式：{"tree_xml": "<root>...</root>"}
+        将自然语言转化为严格结构化的任务 JSON。
+
+        输出格式：
+        {
+            "target_object": "目标物体名称",
+            "task_list": [
+                {
+                    "id": 1,
+                    "device": "视觉|底盘|机械臂|机械爪",
+                    "action": "动作名称",
+                    "target": "目标参数",
+                    "condition": "完成条件",
+                    "fail_handler": "失败处理策略"
+                }
+            ]
+        }
     """
     prompt = f"""
-你是一个高级的 BehaviorTree.CPP (v4) XML 生成器。你的任务是将用户的自然语言指令转化为结构化的行为树 XML。
+你是机器人任务分解器。请将用户自然语言严格转换成 JSON 任务清单。
 
-【可用的控制节点】
-1. <Sequence>: 顺序执行所有子节点，若有一个失败则整体失败
-2. <Fallback>: 依次尝试子节点，直到某个成功则整体成功
-
-【可用的动作节点】
-1. <MoveTo target_place="地点"/>
-   - 参数 target_place: 机器人要去的地点
-
-2. <PickUp object_name="物体"/>
-   - 参数 object_name: 要抓取的物体名称
-
-3. <VoiceAlert message="播报内容"/>
-   - 参数 message: 要播报的文本内容
-
-【设计规则】
-根据用户的自然语言指令生成相应的行为树，合理运用 Sequence 和 Fallback。
-
-【输出格式（必须是严格的 JSON）】
+【输出要求】
+1. 只能输出 JSON，不要输出任何解释、注释、Markdown 代码块。
+2. 必须严格使用以下结构和字段名：
 {{
-  "tree_xml": "<root BTCPP_format=\"4\"><BehaviorTree ID=\"MainTree\">...</BehaviorTree></root>"
+    "target_object": "目标物体名称",
+    "task_list": [
+        {{
+            "id": 1,
+            "device": "视觉|底盘|机械臂|机械爪",
+            "action": "动作名称",
+            "target": "目标参数",
+            "condition": "完成条件",
+            "fail_handler": "失败处理策略"
+        }}
+    ]
+}}
+3. task_list 的 id 必须从 1 开始递增且连续。
+4. device 字段必须且只能是：视觉、底盘、机械臂、机械爪。
+5. 缺失信息时也要给出合理默认值，不能省略任何字段。
+
+【Few-shot 示例】
+用户输入："去拿杯子"
+输出：
+{{
+    "target_object": "杯子",
+    "task_list": [
+        {{
+            "id": 1,
+            "device": "视觉",
+            "action": "识别目标",
+            "target": "杯子",
+            "condition": "检测到杯子并返回位姿",
+            "fail_handler": "重试识别3次，失败则请求人工协助"
+        }},
+        {{
+            "id": 2,
+            "device": "底盘",
+            "action": "移动到目标",
+            "target": "杯子所在位置",
+            "condition": "底盘到达抓取预备点",
+            "fail_handler": "重新规划路径并重试，失败则回到安全点"
+        }},
+        {{
+            "id": 3,
+            "device": "机械臂",
+            "action": "下降到抓取位",
+            "target": "杯子抓取位姿",
+            "condition": "末端执行器到达抓取高度",
+            "fail_handler": "回撤到预备位并重新对位一次"
+        }},
+        {{
+            "id": 4,
+            "device": "机械爪",
+            "action": "夹紧",
+            "target": "杯子",
+            "condition": "夹爪闭合并检测到稳定夹持",
+            "fail_handler": "松开后微调位置再夹一次，失败则终止任务"
+        }}
+    ]
 }}
 
-【重要提醒】
-1. XML 必须使用转义引号 \" 而不是 "
-2. 整个 XML 必须在一行内或正确转义换行
-3. 只输出 JSON，不要有其他文本
-4. BehaviorTree ID 必须是 "MainTree"
-
-用户指令："{user_text}"
-
-现在生成对应的行为树 XML。
+现在根据这条用户指令生成 JSON："{user_text}"
     """
 
     try:
         response = client.chat.completions.create(
             model="qwen-plus",
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.1  # 调低随机性，保证 XML 格式稳定
+            temperature=0.1  # 调低随机性，保证 JSON 结构稳定
         )
         
         # 提取并解析 JSON
@@ -74,11 +117,21 @@ def nlp_processor(user_text):
         
     except Exception as e:
         print(f"解析失败: {e}")
-        # 返回一个默认的容错行为树
-        default_tree = {
-            "tree_xml": """<root BTCPP_format="4"><BehaviorTree ID="MainTree"><VoiceAlert message="指令解析失败，请重试" /></BehaviorTree></root>"""
+        # 返回符合协议的默认结果
+        default_task = {
+            "target_object": "未知目标",
+            "task_list": [
+                {
+                    "id": 1,
+                    "device": "视觉",
+                    "action": "重新识别目标",
+                    "target": "未知目标",
+                    "condition": "识别到可执行目标",
+                    "fail_handler": "提示用户重述指令"
+                }
+            ]
         }
-        return default_tree
+        return default_task
 
 if __name__ == "__main__":
     # 测试一下
@@ -88,16 +141,6 @@ if __name__ == "__main__":
     
     result = nlp_processor(test_command)
     print(f"--- 大脑解析结果 ---")
-    print(f"生成的行为树 XML:")
-    print(result.get('tree_xml', '无法生成'))
+    print(f"生成的任务 JSON:")
+    print(json.dumps(result, ensure_ascii=False, indent=2))
     print()
-    
-    # 这一步是为后面打通 C++ 做准备
-    # 使用脚本所在目录的上一级（项目根目录）作为中转文件路径
-    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    bridge_path = os.path.join(project_root, "task_bridge.json")
-    with open(bridge_path, "w", encoding="utf-8") as f:
-        json.dump(result, f, ensure_ascii=False, indent=2)
-        print(f"\n已将行为树写入中转站: {bridge_path}")
-        print(f"\nJSON 内容预览：")
-        print(json.dumps(result, ensure_ascii=False, indent=2))
