@@ -3,6 +3,6 @@ requests
 python-dotenv
 streamlit
 fastapi
-uvicorn
+uvicorn[standard]
 pydantic
 websockets

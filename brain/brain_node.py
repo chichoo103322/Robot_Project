@@ -1,5 +1,6 @@
 import os
 import json
+from datetime import datetime
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -15,6 +16,71 @@ client = OpenAI(
     api_key=api_key,
     base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
 )
+
+ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
+PARSE_LOG_PATH = os.path.join(ROOT_DIR, "parse_failures.log")
+
+
+def _extract_first_json_object(text):
+    """Extract the first balanced JSON object from a text blob."""
+    if not text:
+        return ""
+
+    start = text.find("{")
+    if start == -1:
+        return ""
+
+    depth = 0
+    in_string = False
+    escape = False
+
+    for i in range(start, len(text)):
+        ch = text[i]
+
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+
+        if ch == '"':
+            in_string = True
+        elif ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : i + 1]
+
+    return ""
+
+
+def _classify_parse_error(exc):
+    name = exc.__class__.__name__
+    if name in {"APITimeoutError", "APIConnectionError", "TimeoutError", "ConnectionError"}:
+        return "NETWORK"
+    if name in {"RateLimitError"}:
+        return "RATE_LIMIT"
+    if name in {"APIStatusError", "AuthenticationError", "PermissionDeniedError", "BadRequestError"}:
+        return "API_STATUS"
+    if isinstance(exc, json.JSONDecodeError):
+        return "JSON_FORMAT"
+    return "UNKNOWN"
+
+
+def _log_parse_failure(user_text, err_type, err_msg, raw_content):
+    payload = {
+        "time": datetime.now().isoformat(timespec="seconds"),
+        "error_type": err_type,
+        "error": err_msg,
+        "input": user_text,
+        "raw_preview": (raw_content or "")[:1000],
+    }
+    with open(PARSE_LOG_PATH, "a", encoding="utf-8") as f:
+        f.write(json.dumps(payload, ensure_ascii=False) + "\n")
 
 def nlp_processor(user_text):
     """
@@ -102,6 +168,7 @@ def nlp_processor(user_text):
 现在根据这条用户指令生成 JSON："{user_text}"
     """
 
+    raw_content = ""
     try:
         response = client.chat.completions.create(
             model="qwen-plus",
@@ -110,13 +177,20 @@ def nlp_processor(user_text):
         )
         
         # 提取并解析 JSON
-        raw_content = response.choices[0].message.content
-        # 简单清理可能存在的 Markdown 标签
-        clean_json = raw_content.replace("```json", "").replace("```", "").strip()
-        return json.loads(clean_json)
+        raw_content = response.choices[0].message.content or ""
+        if not isinstance(raw_content, str):
+            raw_content = str(raw_content)
+
+        # 先做基础清理，再尝试提取首个平衡 JSON 对象，减少模型多余文本导致的失败
+        clean_text = raw_content.replace("```json", "").replace("```", "").strip()
+        json_candidate = _extract_first_json_object(clean_text) or clean_text
+        return json.loads(json_candidate)
         
     except Exception as e:
-        print(f"解析失败: {e}")
+        err_type = _classify_parse_error(e)
+        _log_parse_failure(user_text=user_text, err_type=err_type, err_msg=str(e), raw_content=raw_content)
+        print(f"解析失败[{err_type}]: {e}")
+        print(f"失败详情已记录到: {PARSE_LOG_PATH}")
         # 返回符合协议的默认结果
         default_task = {
             "target_object": "未知目标",

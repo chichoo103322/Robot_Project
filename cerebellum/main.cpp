@@ -1,3 +1,89 @@
+/*
+ * =============================================================================
+ * main.cpp — 机器人小脑端（C++ 执行控制器）
+ * =============================================================================
+ *
+ * 【职责】
+ *   通过 WebSocket 连接 Python 后端，接收任务 JSON，动态构造并执行行为树，
+ *   逐步将执行结果上报给后端，再由后端转发给前端展示。
+ *
+ * 【WebSocket 连接目标】
+ *   ws://127.0.0.1:8000/ws/robot
+ *   （后端需先启动：uvicorn server:app --host 127.0.0.1 --port 8000）
+ *
+ * =============================================================================
+ *   WebSocket 消息协议（/ws/robot 通道）
+ * =============================================================================
+ *
+ *   ── 接收方向（Server → 本端）─────────────────────────────────────────────
+ *
+ *   1. 握手确认（连接建立后由 server.py 主动下发）：
+ *      {"type": "connected", "role": "robot"}
+ *
+ *   2. 任务下发（由 server.py 在收到前端指令、完成 LLM 解析后广播）：
+ *      {
+ *        "type":        "task_dispatch",
+ *        "task_id":     42,                  // SQLite 主键，所有上报必须携带
+ *        "raw_command": "去厨房拿水杯",
+ *        "task_json": {                       // LLM 解析结果
+ *          "target_object": "水杯",
+ *          "task_list": [
+ *            {
+ *              "id":           1,            // 步骤编号，从 1 开始递增
+ *              "device":       "底盘",       // 视觉 | 底盘 | 机械臂 | 机械爪
+ *              "action":       "移动到厨房",
+ *              "target":       "厨房",
+ *              "condition":    "到达厨房入口",
+ *              "fail_handler": "重试三次后终止任务"
+ *            },
+ *            { "id": 2, ... },
+ *            ...
+ *          ]
+ *        }
+ *      }
+ *      ⚠  仅处理 type == "task_dispatch" 的消息，其余类型直接忽略。
+ *      ⚠  同时只允许一个任务执行（executeMutex 保护），不支持并行任务。
+ *
+ *   3. 确认回执（每次上报后由 server.py 返回）：
+ *      {"type": "ack", "task_id": 42, "status": "RUNNING"}
+ *      （当前版本不需要处理，仅供调试参考）
+ *
+ *   ── 发送方向（本端 → Server）─────────────────────────────────────────────
+ *
+ *   4. 步骤状态上报（每个行为树节点执行时由 RobotActionNode::reporter_ 触发）：
+ *      {
+ *        "task_id": 42,
+ *        "step_id": 1,              // 对应 task_list[].id；-1 保留给整体完成
+ *        "device":  "底盘",
+ *        "status":  "RUNNING",      // RUNNING | SUCCESS | FAILURE
+ *        "detail":  "正在移动..."   // 人类可读的执行描述
+ *      }
+ *
+ *   5. 任务整体完成（executeTaskJson 全部步骤执行完毕后发送）：
+ *      {
+ *        "task_id": 42,
+ *        "status":  "SUCCESS",
+ *        "step_id": -1,
+ *        "detail":  "all steps completed"
+ *      }
+ *
+ * =============================================================================
+ *   行为树节点类型
+ * =============================================================================
+ *
+ *   RobotAction（RobotActionNode）
+ *     端口: step_id, device, action, target, condition, fail_handler
+ *     执行时调用 reporter_ 上报 RUNNING，成功后上报 SUCCESS，
+ *     fail_handler 含"重试"关键字时最多重试一次。
+ *
+ *   VisionDetect（VisionDetectNode）
+ *     端口: target, condition, fail_handler
+ *     模拟视觉检测，随机成功/失败（测试占位逻辑）。
+ *     失败时 fail_handler 含"重试"则重试一次。
+ *
+ * =============================================================================
+ */
+
 #include <behaviortree_cpp/action_node.h>
 #include <behaviortree_cpp/bt_factory.h>
 #include <ixwebsocket/IXNetSystem.h>

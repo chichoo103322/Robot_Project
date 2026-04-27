@@ -109,6 +109,24 @@ cd Robot_Project
 4. C++ 动态生成行为树并执行
 5. 执行状态经 WebSocket 回传并实时展示
 
+## 一键启动
+
+项目根目录已提供脚本：`start_all.sh`
+
+首次给执行权限：
+
+```bash
+chmod +x start_all.sh
+```
+
+启动（会自动检查 `.venv`、`.env`，缺少 `robot_brain` 时自动编译）：
+
+```bash
+./start_all.sh
+```
+
+停止：在脚本终端按 `Ctrl+C`，会同时关闭后端和 C++ 控制器。
+
 ## 可选运行方式
 
 ### Streamlit（快速调试）
