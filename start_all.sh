@@ -38,10 +38,10 @@ fi
 
 source "$VENV_ACTIVATE"
 
-# 若 8000 端口已被占用则先杀掉，避免 "address already in use"
-if lsof -ti:8000 >/dev/null 2>&1; then
-  echo "[INFO] Port 8000 in use, releasing..."
-  lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+# 若 8090 端口已被占用则先杀掉，避免 "address already in use"
+if lsof -ti:8090 >/dev/null 2>&1; then
+  echo "[INFO] Port 8090 in use, releasing..."
+  lsof -ti:8090 | xargs kill -9 2>/dev/null || true
   sleep 1
 fi
 
@@ -66,9 +66,9 @@ echo "[INFO] Starting robot brain: ./cerebellum/build/robot_brain"
 ROBOT_PID=$!
 
 echo "[OK] All services are up"
-echo "[INFO] Open: http://127.0.0.1:8000"
-if command -v open >/dev/null 2>&1; then
-  open "http://127.0.0.1:8000" >/dev/null 2>&1 || true
+echo "[INFO] Open: http://127.0.0.1:8090"
+if command -v open &>/dev/null; then
+  open "http://127.0.0.1:8090" >/dev/null 2>&1 || true
 fi
 echo "[INFO] Press Ctrl+C to stop both services"
 

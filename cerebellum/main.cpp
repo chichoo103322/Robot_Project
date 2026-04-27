@@ -8,8 +8,8 @@
  *   逐步将执行结果上报给后端，再由后端转发给前端展示。
  *
  * 【WebSocket 连接目标】
- *   ws://127.0.0.1:8000/ws/robot
- *   （后端需先启动：uvicorn server:app --host 127.0.0.1 --port 8000）
+ *   ws://127.0.0.1:8090/ws/robot
+ *   （后端需先启动：uvicorn server:app --host 0.0.0.0 --port 8090）
  *
  * =============================================================================
  *   WebSocket 消息协议（/ws/robot 通道）
@@ -436,7 +436,7 @@ int main()
     factory.registerNodeType<VisionDetectNode>("VisionDetect");
 
     ix::WebSocket ws;
-    ws.setUrl("ws://127.0.0.1:8000/ws/robot");
+    ws.setUrl("ws://127.0.0.1:8090/ws/robot");
 
     std::mutex executeMutex;
 
@@ -459,7 +459,7 @@ int main()
     ws.setOnMessageCallback([&](const ix::WebSocketMessagePtr& msg) {
         if (msg->type == ix::WebSocketMessageType::Open)
         {
-            std::cout << ">>> 已连接后端 WebSocket: ws://127.0.0.1:8000/ws/robot" << std::endl;
+            std::cout << ">>> 已连接后端 WebSocket: ws://127.0.0.1:8090/ws/robot" << std::endl;
             return;
         }
 
