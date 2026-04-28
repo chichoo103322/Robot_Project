@@ -308,6 +308,40 @@ def parse_frontend_command(raw_text: str) -> str:
 @app.on_event("startup")
 async def on_startup() -> None:
     init_db()
+    asyncio.create_task(vision_stream_client())  # 启动后台视觉流拉取任务
+
+
+VISION_WS_URL = "ws://172.16.25.198:8091"
+
+
+async def vision_stream_client() -> None:
+    """
+    后台任务：作为 WebSocket 客户端连接视觉相机模块，
+    将接收到的 Base64 图像帧广播给所有已连接的前端页面。
+
+    视觉模块 → 本服务: 纯 Base64 字符串（JPEG 图像）
+    本服务 → 前端:     {"type": "video_frame", "data": "<base64>"}
+
+    断线后每 3 秒自动重连。
+    """
+    import websockets as _ws
+    while True:
+        try:
+            async with _ws.connect(VISION_WS_URL) as ws:
+                print(f"[视觉流] 已连接: {VISION_WS_URL}")
+                while True:
+                    raw_data = await ws.recv()
+                    # 兼容纯 Base64 字符串和 JSON 两种格式
+                    if isinstance(raw_data, bytes):
+                        import base64
+                        b64 = base64.b64encode(raw_data).decode()
+                    else:
+                        b64 = raw_data.strip()
+                    payload = {"type": "video_frame", "data": b64}
+                    await hub.broadcast_frontend(payload)
+        except Exception as exc:
+            print(f"[视觉流] 连接断开: {exc}，3s 后重连")
+            await asyncio.sleep(3)
 
 # GET 接口：返回前端页面
 @app.get("/", response_class=HTMLResponse)
