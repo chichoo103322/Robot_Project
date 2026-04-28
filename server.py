@@ -85,12 +85,10 @@ from dotenv import load_dotenv
 
 load_dotenv()  # 从项目根目录的 .env 文件加载环境变量
 
-# 清除系统级代理环境变量，防止 websockets / httpx 将内网请求路由到本机代理工具
-# （macOS 上 Clash 等代理软件会自动写入 http_proxy / all_proxy，导致局域网直连失败）
-for _proxy_key in ("http_proxy", "https_proxy", "all_proxy",
-                   "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
-                   "socks_proxy", "SOCKS_PROXY"):
-    os.environ.pop(_proxy_key, None)
+# 绕过系统级代理（macOS Clash 等会自动设置 socks 代理影响内网直连）
+# 用 NO_PROXY=* 让所有请求跳过代理，比 pop 环境变量更可靠
+os.environ["no_proxy"] = "*"
+os.environ["NO_PROXY"] = "*"
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
