@@ -311,7 +311,7 @@ async def on_startup() -> None:
     asyncio.create_task(vision_stream_client())  # 启动后台视觉流拉取任务
 
 
-VISION_WS_URL = "ws://172.16.25.198:8091"
+VISION_WS_URL: str = os.getenv("VISION_WS_URL", "ws://172.16.25.198:8091")
 
 
 async def vision_stream_client() -> None:
@@ -320,6 +320,7 @@ async def vision_stream_client() -> None:
     将接收到的 Base64 图像帧广播给所有已连接的前端页面。
 
     视觉模块 → 本服务: 纯 Base64 字符串（JPEG 图像）
+    视觉模块 → 本服务: JSON {"frame_b64": "<base64>"} 或纯 Base64 字符串
     本服务 → 前端:     {"type": "video_frame", "data": "<base64>"}
 
     断线后每 3 秒自动重连。
@@ -331,11 +332,15 @@ async def vision_stream_client() -> None:
                 print(f"[视觉流] 已连接: {VISION_WS_URL}")
                 while True:
                     raw_data = await ws.recv()
-                    # 兼容纯 Base64 字符串和 JSON 两种格式
+                    # 统一转为字符串
                     if isinstance(raw_data, bytes):
-                        import base64
-                        b64 = base64.b64encode(raw_data).decode()
-                    else:
+                        raw_data = raw_data.decode("utf-8", errors="replace")
+                    # 优先尝试 JSON 解析，提取 frame_b64 字段
+                    try:
+                        parsed = json.loads(raw_data)
+                        b64 = parsed.get("frame_b64", "")
+                    except (json.JSONDecodeError, AttributeError):
+                        # 兜底：视觉端直接发送纯 Base64 字符串
                         b64 = raw_data.strip()
                     payload = {"type": "video_frame", "data": b64}
                     await hub.broadcast_frontend(payload)
@@ -633,6 +638,6 @@ async def api_execute(req: ExecuteRequest):
 
 # 启动 FastAPI 应用
 if __name__ == "__main__":
-    # host="0.0.0.0" 允许局域网内 Java 总后端（172.16.25.79）访问
-    # port=8090 与总后端约定对齐
-    uvicorn.run(app, host="0.0.0.0", port=8090)
+    _host = os.getenv("SERVER_HOST", "0.0.0.0")
+    _port = int(os.getenv("SERVER_PORT", "8090"))
+    uvicorn.run(app, host=_host, port=_port)
