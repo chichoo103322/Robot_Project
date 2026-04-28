@@ -80,9 +80,18 @@ import sqlite3
 from typing import Any, Dict, Set
 import uvicorn
 import httpx
+import websockets as _ws
 from dotenv import load_dotenv
 
 load_dotenv()  # 从项目根目录的 .env 文件加载环境变量
+
+# 清除系统级代理环境变量，防止 websockets / httpx 将内网请求路由到本机代理工具
+# （macOS 上 Clash 等代理软件会自动写入 http_proxy / all_proxy，导致局域网直连失败）
+for _proxy_key in ("http_proxy", "https_proxy", "all_proxy",
+                   "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
+                   "socks_proxy", "SOCKS_PROXY"):
+    os.environ.pop(_proxy_key, None)
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -249,6 +258,9 @@ class ConnectionHub:
 
 hub = ConnectionHub()
 
+# 保持后台异步任务的强引用，防止被 GC 静默销毁
+background_tasks: Set[asyncio.Task] = set()
+
 
 def init_db() -> None:
     with sqlite3.connect(DB_PATH) as conn:
@@ -308,7 +320,9 @@ def parse_frontend_command(raw_text: str) -> str:
 @app.on_event("startup")
 async def on_startup() -> None:
     init_db()
-    asyncio.create_task(vision_stream_client())  # 启动后台视觉流拉取任务
+    task = asyncio.create_task(vision_stream_client())  # 启动后台视觉流拉取任务
+    background_tasks.add(task)
+    task.add_done_callback(background_tasks.discard)
 
 
 VISION_WS_URL: str = os.getenv("VISION_WS_URL", "ws://172.16.25.198:8091")
@@ -325,11 +339,10 @@ async def vision_stream_client() -> None:
 
     断线后每 3 秒自动重连。
     """
-    import websockets as _ws
     while True:
         try:
             async with _ws.connect(VISION_WS_URL) as ws:
-                print(f"[视觉流] 已连接: {VISION_WS_URL}")
+                print(f"[视觉流] ✅ 已成功连接视觉端: {VISION_WS_URL}")
                 while True:
                     raw_data = await ws.recv()
                     # 统一转为字符串
@@ -342,10 +355,11 @@ async def vision_stream_client() -> None:
                     except (json.JSONDecodeError, AttributeError):
                         # 兜底：视觉端直接发送纯 Base64 字符串
                         b64 = raw_data.strip()
-                    payload = {"type": "video_frame", "data": b64}
-                    await hub.broadcast_frontend(payload)
+                    if b64:
+                        payload = {"type": "video_frame", "data": b64}
+                        await hub.broadcast_frontend(payload)
         except Exception as exc:
-            print(f"[视觉流] 连接断开: {exc}，3s 后重连")
+            print(f"[视觉流] ❌ {type(exc).__name__}: {exc}，3s 后重连")
             await asyncio.sleep(3)
 
 # GET 接口：返回前端页面
