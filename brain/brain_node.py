@@ -84,88 +84,63 @@ def _log_parse_failure(user_text, err_type, err_msg, raw_content):
 
 def nlp_processor(user_text):
     """
-        将自然语言转化为严格结构化的任务 JSON。
+    将自然语言拆分为有序执行步骤列表。
 
-        输出格式：
-        {
-            "target_object": "目标物体名称",
-            "task_list": [
-                {
-                    "id": 1,
-                    "device": "视觉|底盘|机械臂|机械爪",
-                    "action": "动作名称",
-                    "target": "目标参数",
-                    "condition": "完成条件",
-                    "fail_handler": "失败处理策略"
-                }
-            ]
-        }
+    输出格式：
+    {
+        "command": "原始指令",
+        "steps": [
+            {"id": 1, "action": "步骤描述"},
+            {"id": 2, "action": "步骤描述"},
+            ...
+        ]
+    }
     """
     prompt = f"""
-你是机器人任务分解器。请将用户自然语言严格转换成 JSON 任务清单。
+你是机器人任务规划器。请将用户指令拆分为机器人可按顺序执行的步骤列表。
 
 【输出要求】
-1. 只能输出 JSON，不要输出任何解释、注释、Markdown 代码块。
-2. 必须严格使用以下结构和字段名：
+1. 只输出 JSON，不要输出任何解释、注释、Markdown 代码块。
+2. 严格使用以下格式：
 {{
-    "target_object": "目标物体名称",
-    "task_list": [
-        {{
-            "id": 1,
-            "device": "视觉|底盘|机械臂|机械爪",
-            "action": "动作名称",
-            "target": "目标参数",
-            "condition": "完成条件",
-            "fail_handler": "失败处理策略"
-        }}
+    "command": "用户原始指令",
+    "steps": [
+        {{"id": 1, "action": "步骤描述"}},
+        {{"id": 2, "action": "步骤描述"}}
     ]
 }}
-3. task_list 的 id 必须从 1 开始递增且连续。
-4. device 字段必须且只能是：视觉、底盘、机械臂、机械爪。
-5. 缺失信息时也要给出合理默认值，不能省略任何字段。
+3. steps 的 id 从 1 开始递增，每个步骤只填 action 字段（简洁描述动作）。
+4. 步骤要具体可执行，不要笼统。
 
-【Few-shot 示例】
-用户输入："去拿杯子"
+【示例】
+输入："去客厅拿个杯子"
 输出：
 {{
-    "target_object": "杯子",
-    "task_list": [
-        {{
-            "id": 1,
-            "device": "视觉",
-            "action": "识别目标",
-            "target": "杯子",
-            "condition": "检测到杯子并返回位姿",
-            "fail_handler": "重试识别3次，失败则请求人工协助"
-        }},
-        {{
-            "id": 2,
-            "device": "底盘",
-            "action": "移动到目标",
-            "target": "杯子所在位置",
-            "condition": "底盘到达抓取预备点",
-            "fail_handler": "重新规划路径并重试，失败则回到安全点"
-        }},
-        {{
-            "id": 3,
-            "device": "机械臂",
-            "action": "下降到抓取位",
-            "target": "杯子抓取位姿",
-            "condition": "末端执行器到达抓取高度",
-            "fail_handler": "回撤到预备位并重新对位一次"
-        }},
-        {{
-            "id": 4,
-            "device": "机械爪",
-            "action": "夹紧",
-            "target": "杯子",
-            "condition": "夹爪闭合并检测到稳定夹持",
-            "fail_handler": "松开后微调位置再夹一次，失败则终止任务"
-        }}
+    "command": "去客厅拿个杯子",
+    "steps": [
+        {{"id": 1, "action": "导航到客厅"}},
+        {{"id": 2, "action": "识别杯子位置"}},
+        {{"id": 3, "action": "移动到杯子旁边"}},
+        {{"id": 4, "action": "伸出机械臂抓取杯子"}},
+        {{"id": 5, "action": "返回原位"}}
     ]
 }}
 
-现在根据这条用户指令生成 JSON："{user_text}"
+输入："去厨房拿瓶水放到桌上"
+输出：
+{{
+    "command": "去厨房拿瓶水放到桌上",
+    "steps": [
+        {{"id": 1, "action": "导航到厨房"}},
+        {{"id": 2, "action": "识别水瓶位置"}},
+        {{"id": 3, "action": "移动到水瓶旁边"}},
+        {{"id": 4, "action": "抓取水瓶"}},
+        {{"id": 5, "action": "导航到桌子旁边"}},
+        {{"id": 6, "action": "将水瓶放到桌上"}}
+    ]
+}}
+
+现在拆分这条指令："{user_text}"
     """
 
     raw_content = ""
@@ -191,18 +166,11 @@ def nlp_processor(user_text):
         _log_parse_failure(user_text=user_text, err_type=err_type, err_msg=str(e), raw_content=raw_content)
         print(f"解析失败[{err_type}]: {e}")
         print(f"失败详情已记录到: {PARSE_LOG_PATH}")
-        # 返回符合协议的默认结果
+        # 返回符合协议的默认结果（步骤列表格式）
         default_task = {
-            "target_object": "未知目标",
-            "task_list": [
-                {
-                    "id": 1,
-                    "device": "视觉",
-                    "action": "重新识别目标",
-                    "target": "未知目标",
-                    "condition": "识别到可执行目标",
-                    "fail_handler": "提示用户重述指令"
-                }
+            "command": user_text,
+            "steps": [
+                {"id": 1, "action": "重新解析指令（LLM 调用失败，请重试）"}
             ]
         }
         return default_task

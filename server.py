@@ -413,6 +413,14 @@ async def ws_frontend(websocket: WebSocket):
                 # 写入 SQLite，返回的 task_id 贯穿后续所有消息
                 task_id = insert_task(command, task_json)
 
+                # ── 立即将步骤计划推送给 Java 总后端 ──────────────────────
+                await hub.broadcast_backend({
+                    "event": "task_planned",
+                    "task_id": task_id,
+                    "command": command,
+                    "steps": task_json.get("steps", []),
+                })
+
                 # 通知前端：任务已入队（status=PENDING）
                 await hub.broadcast_frontend(
                     {
@@ -604,7 +612,8 @@ async def ws_llm(websocket: WebSocket):
                     await websocket.send_json({
                         "success": True,
                         "action": "parse_result",
-                        "task_json": task_json,
+                        "command": instruction,
+                        "steps": task_json.get("steps", []),
                     })
                 else:
                     await websocket.send_json({"success": False, "error": f"未知 action: {action}"})
